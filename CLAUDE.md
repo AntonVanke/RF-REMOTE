@@ -266,9 +266,10 @@ ESP_LOGV(TAG, "详细: %s", verbose);   // Verbose级别
 9. **RF信号发送**:
    - 支持433MHz和315MHz双频发送
    - 显示已保存信号列表
-   - 上下键选择信号，OK键直接发送
-   - 发送状态显示 (500ms)
+   - 上下键选择信号，OK键直接发送（无发送状态页面）
+   - 支持快速连续发送（点击几次就发送几次）
    - 支持12种协议
+   - 使用接收时记录的脉宽进行发送
 
 ## 待实现功能
 
@@ -349,7 +350,8 @@ public:
 
 **已实现页面**:
 - **AboutPage**: 关于页面，显示系统信息（FPS、CPU、RAM、Flash、SDK、运行时间、电池电压）
-- **SignalRxPage**: 信号接收页面，支持433/315MHz双频扫描，自动保存信号，调试模式显示中断计数
+- **SignalRxPage**: 信号接收页面，支持433/315MHz双频扫描，自动保存信号
+  - 布局: 频率|编码, 协议|十六进制, 位数|脉宽, 右侧竖排状态
 - **SignalTxPage**: 发送模式页面，显示已保存信号列表，OK键直接发送
 
 **添加新页面步骤**:
@@ -367,6 +369,12 @@ public:
   - RCSwitch315: 315MHz接收 (GPIO3) - 本地库
 - 两个库各自维护独立的静态变量，互不干扰
 - 中断方式接收，响应速度快
+- **信号过滤**:
+  - 最小位数过滤: 忽略位数<20的干扰信号 (MIN_VALID_BITS=20)
+  - 2^n-1位过滤: 忽略3,7,15,31位等噪声信号
+  - 全1编码过滤: 忽略全1的编码值
+  - 去重窗口: 100ms内相同编码视为重复 (防止433/315混淆)
+  - 冷却时间: 收到有效信号后500ms内忽略所有信号 (RECEIVE_COOLDOWN_MS=500)
 - 支持多种协议: PT2262, PT2260, EV1527, HT6P20B, SC5262, HT12E等
 - 调试功能: 可获取中断计数和时序数量
 
@@ -384,11 +392,19 @@ public:
 **接口**:
 ```cpp
 class RFReceiver {
+    // 最小有效位数 (低于此值视为干扰)
+    static const unsigned int MIN_VALID_BITS = 20;
+    // 去重窗口时间 (ms)
+    static const unsigned long DUPLICATE_WINDOW_MS = 100;
+    // 接收冷却时间 (ms)
+    static const unsigned long RECEIVE_COOLDOWN_MS = 500;
+
     struct Signal {
         unsigned long code;     // 编码值
         unsigned int protocol;  // 协议类型
         unsigned int bits;      // 位长度
         unsigned int freq;      // 频率 (433/315)
+        unsigned int pulseLength; // 脉宽 (微秒)
     };
 
     void begin();               // 初始化
@@ -415,13 +431,14 @@ class RFReceiver {
   - RCSwitch315: 315MHz发送 (GPIO2)
 - 根据信号频率自动选择发送器
 - 支持12种协议
+- 支持自定义脉宽 (使用接收时记录的脉宽)
 - 默认重复发送10次
 
 **接口**:
 ```cpp
 class RFTransmitter {
     void begin();               // 初始化
-    void send(code, bits, freq, protocol);  // 发送信号
+    void send(code, bits, freq, protocol, pulseLength);  // 发送信号
     void setRepeatTransmit(int repeat);     // 设置重复次数
     bool isSending();           // 是否正在发送
 };
@@ -484,7 +501,8 @@ class RCSwitch433 {
     "code": 1234567,
     "freq": 433,
     "protocol": 1,
-    "bits": 24
+    "bits": 24,
+    "pulse": 350
   }
 ]
 ```
@@ -498,6 +516,7 @@ class SignalStorage {
         unsigned int freq;
         unsigned int protocol;
         unsigned int bits;
+        unsigned int pulseLength;  // 脉宽
     };
 
     bool begin();                                   // 初始化LittleFS
@@ -538,8 +557,10 @@ bool fullRefresh;     // 全屏刷新 (页面切换时)
 
 **刷新函数**:
 - `refreshStatusBar()`: 只刷新状态栏 (传输256字节)
-- `refreshContent()`: 只刷新内容区 (传输768字节)
+- `refreshContent()`: 只刷新内容区 (传输768字节)，会重绘分隔线
 - `refreshAll()`: 全屏刷新 (传输1024字节)
+
+**注意**: 分隔线在Y=16位置，属于状态栏和内容区的边界。内容区刷新时会清除此行，因此`refreshContent()`需要重绘分隔线以保持一致性。
 
 **刷新触发条件**:
 - 菜单导航 → 只刷新内容区

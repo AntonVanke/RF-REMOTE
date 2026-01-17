@@ -104,6 +104,9 @@ void refreshContent() {
     // 清除内容区域
     clearArea(0, 16, 128, 48);
 
+    // 重绘分隔线 (因为Y=16在边界上，清除内容区时会被清掉)
+    u8g2->drawHLine(0, 16, 128);
+
     // 绘制内容
     if (currentPage == PAGE_MENU) {
         menu->draw();

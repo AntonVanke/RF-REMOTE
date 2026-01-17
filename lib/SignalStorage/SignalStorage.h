@@ -17,6 +17,7 @@ public:
         unsigned int freq;      // 频率 (433/315)
         unsigned int protocol;  // 协议类型
         unsigned int bits;      // 位长度
+        unsigned int pulseLength; // 脉宽 (微秒)
     };
 
     static const int MAX_SIGNALS = 50;  // 最大保存信号数量

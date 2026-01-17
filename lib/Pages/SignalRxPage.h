@@ -8,6 +8,13 @@
 /**
  * 信号接收页面
  * 用于接收和显示RF信号，自动保存到Flash
+ *
+ * 布局设计:
+ * +------------------+--------+
+ * | 433/315  |  code | 接|已  |
+ * | 协议     |  hex  | 收|存  |
+ * | 位数:xx  | 脉宽  | 中|在  |
+ * +------------------+--------+
  */
 class SignalRxPage : public Page {
 public:
@@ -18,7 +25,6 @@ public:
     void draw() override;
     bool handleButton(ButtonEvent event) override;
     const char* getTitle() override { return "信号接收"; }
-    bool needsConstantRefresh() override { return _debugMode; }  // 调试模式时实时刷新
     bool update() override;
 
 private:
@@ -39,14 +45,9 @@ private:
     unsigned long _lastCodeTime;  // 上次接收时间
     static const unsigned long DUPLICATE_WINDOW = 2000;  // 2秒防重复窗口
 
-    // 调试模式
-    bool _debugMode;              // 是否显示调试信息
-    unsigned long _lastDebugUpdate; // 上次调试信息更新时间
-
     // 辅助函数
     void drawWaiting();
     void drawSignalInfo();
-    void drawDebugInfo();         // 绘制调试信息
 };
 
 #endif // SIGNAL_RX_PAGE_H

@@ -127,6 +127,7 @@ bool SignalStorage::saveToFile() {
         obj["freq"] = _signals[i].freq;
         obj["protocol"] = _signals[i].protocol;
         obj["bits"] = _signals[i].bits;
+        obj["pulse"] = _signals[i].pulseLength;
     }
 
     // 序列化到文件
@@ -167,6 +168,7 @@ bool SignalStorage::loadFromFile() {
         _signals[_signalCount].freq = obj["freq"] | 433;
         _signals[_signalCount].protocol = obj["protocol"] | 1;
         _signals[_signalCount].bits = obj["bits"] | 24;
+        _signals[_signalCount].pulseLength = obj["pulse"] | 350;  // 默认350us
 
         _signalCount++;
     }

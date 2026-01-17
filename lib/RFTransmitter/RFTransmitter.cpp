@@ -30,17 +30,25 @@ void RFTransmitter::begin() {
     ESP_LOGI(TAG, "RF发送模块初始化完成");
 }
 
-void RFTransmitter::send(unsigned long code, unsigned int bits, unsigned int freq, unsigned int protocol) {
+void RFTransmitter::send(unsigned long code, unsigned int bits, unsigned int freq, unsigned int protocol, unsigned int pulseLength) {
     _sending = true;
 
-    ESP_LOGI(TAG, "发送信号: %dMHz 编码:%lu 协议:%d 位数:%d",
-             freq, code, protocol, bits);
+    ESP_LOGI(TAG, "发送信号: %dMHz 编码:%lu 协议:%d 位数:%d 脉宽:%dus",
+             freq, code, protocol, bits, pulseLength);
 
     if (freq == 433) {
-        _rcSwitch433.setProtocol(protocol);
+        if (pulseLength > 0) {
+            _rcSwitch433.setProtocol(protocol, pulseLength);
+        } else {
+            _rcSwitch433.setProtocol(protocol);
+        }
         _rcSwitch433.send(code, bits);
     } else if (freq == 315) {
-        _rcSwitch315.setProtocol(protocol);
+        if (pulseLength > 0) {
+            _rcSwitch315.setProtocol(protocol, pulseLength);
+        } else {
+            _rcSwitch315.setProtocol(protocol);
+        }
         _rcSwitch315.send(code, bits);
     } else {
         ESP_LOGW(TAG, "未知频率: %d", freq);

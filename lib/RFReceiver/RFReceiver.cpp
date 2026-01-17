@@ -28,6 +28,9 @@ static const int PROTOCOL_COUNT = sizeof(PROTOCOL_NAMES) / sizeof(PROTOCOL_NAMES
 RFReceiver::RFReceiver()
     : _hasNewSignal(false)
     , _scanning(false)
+    , _lastReceivedCode(0)
+    , _lastReceivedTime(0)
+    , _lastValidSignalTime(0)
 {
     memset(&_lastSignal, 0, sizeof(_lastSignal));
 }
@@ -83,22 +86,88 @@ void RFReceiver::update() {
     check315();
 }
 
+bool RFReceiver::isValidSignal(unsigned long code, unsigned int bits) {
+    // 1. 过滤短位数信号
+    if (bits < MIN_VALID_BITS) {
+        return false;
+    }
+
+    // 2. 过滤 2^n-1 位的信号 (通常是噪声: 3,7,15,31位)
+    // 检查 bits+1 是否为2的幂
+    unsigned int bitsPlus1 = bits + 1;
+    if ((bitsPlus1 & (bitsPlus1 - 1)) == 0) {
+        return false;
+    }
+
+    // 3. 过滤全1的编码 (噪声特征)
+    unsigned long maxCode = (1UL << bits) - 1;
+    if (code == maxCode) {
+        return false;
+    }
+
+    return true;
+}
+
+bool RFReceiver::isDuplicateSignal(unsigned long code) {
+    unsigned long now = millis();
+    // 在去重窗口内收到相同编码，视为重复
+    if (code == _lastReceivedCode && (now - _lastReceivedTime) < DUPLICATE_WINDOW_MS) {
+        return true;
+    }
+    // 更新最后接收记录
+    _lastReceivedCode = code;
+    _lastReceivedTime = now;
+    return false;
+}
+
+bool RFReceiver::isInCooldown() {
+    unsigned long now = millis();
+    if ((now - _lastValidSignalTime) < RECEIVE_COOLDOWN_MS) {
+        return true;
+    }
+    return false;
+}
+
 void RFReceiver::check433() {
     if (_rcSwitch433.available()) {
         unsigned long code = _rcSwitch433.getReceivedValue();
+        unsigned int bits = _rcSwitch433.getReceivedBitlength();
+
+        // 冷却期内忽略所有信号
+        if (isInCooldown()) {
+            _rcSwitch433.resetAvailable();
+            return;
+        }
 
         if (code != 0) {
+            // 过滤无效信号
+            if (!isValidSignal(code, bits)) {
+                ESP_LOGD(TAG, "433MHz忽略无效信号: 编码:%lu 位数:%d", code, bits);
+                _rcSwitch433.resetAvailable();
+                return;
+            }
+
+            // 过滤重复信号 (防止433/315混淆)
+            if (isDuplicateSignal(code)) {
+                ESP_LOGD(TAG, "433MHz忽略重复信号: 编码:%lu", code);
+                _rcSwitch433.resetAvailable();
+                return;
+            }
+
             _lastSignal.code = code;
             _lastSignal.protocol = _rcSwitch433.getReceivedProtocol();
-            _lastSignal.bits = _rcSwitch433.getReceivedBitlength();
+            _lastSignal.bits = bits;
             _lastSignal.freq = 433;
+            _lastSignal.pulseLength = _rcSwitch433.getReceivedDelay();
             _lastSignal.timestamp = millis();
             _hasNewSignal = true;
+            _lastValidSignalTime = millis();  // 更新冷却时间
 
-            ESP_LOGI(TAG, "收到433MHz信号! 编码:%lu 协议:%d 位数:%d",
+            ESP_LOGI(TAG, "收到433MHz信号! 编码:%lu 协议:%d 位数:%d 脉宽:%dus",
                      _lastSignal.code,
                      _lastSignal.protocol,
-                     _lastSignal.bits);
+                     _lastSignal.bits,
+                     _lastSignal.pulseLength);
         }
 
         _rcSwitch433.resetAvailable();
@@ -108,19 +177,43 @@ void RFReceiver::check433() {
 void RFReceiver::check315() {
     if (_rcSwitch315.available()) {
         unsigned long code = _rcSwitch315.getReceivedValue();
+        unsigned int bits = _rcSwitch315.getReceivedBitlength();
+
+        // 冷却期内忽略所有信号
+        if (isInCooldown()) {
+            _rcSwitch315.resetAvailable();
+            return;
+        }
 
         if (code != 0) {
+            // 过滤无效信号
+            if (!isValidSignal(code, bits)) {
+                ESP_LOGD(TAG, "315MHz忽略无效信号: 编码:%lu 位数:%d", code, bits);
+                _rcSwitch315.resetAvailable();
+                return;
+            }
+
+            // 过滤重复信号 (防止433/315混淆)
+            if (isDuplicateSignal(code)) {
+                ESP_LOGD(TAG, "315MHz忽略重复信号: 编码:%lu", code);
+                _rcSwitch315.resetAvailable();
+                return;
+            }
+
             _lastSignal.code = code;
             _lastSignal.protocol = _rcSwitch315.getReceivedProtocol();
-            _lastSignal.bits = _rcSwitch315.getReceivedBitlength();
+            _lastSignal.bits = bits;
             _lastSignal.freq = 315;
+            _lastSignal.pulseLength = _rcSwitch315.getReceivedDelay();
             _lastSignal.timestamp = millis();
             _hasNewSignal = true;
+            _lastValidSignalTime = millis();  // 更新冷却时间
 
-            ESP_LOGI(TAG, "收到315MHz信号! 编码:%lu 协议:%d 位数:%d",
+            ESP_LOGI(TAG, "收到315MHz信号! 编码:%lu 协议:%d 位数:%d 脉宽:%dus",
                      _lastSignal.code,
                      _lastSignal.protocol,
-                     _lastSignal.bits);
+                     _lastSignal.bits,
+                     _lastSignal.pulseLength);
         }
 
         _rcSwitch315.resetAvailable();

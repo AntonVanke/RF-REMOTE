@@ -32,18 +32,12 @@ private:
     int _selectedIndex;
     int _scrollOffset;
 
-    // 发送状态
-    bool _sending;
-    unsigned long _sendStartTime;
-    static const unsigned long SEND_DISPLAY_TIME = 500;  // 发送状态显示时间(ms)
-
     // 每页显示的信号数量
     static const int ITEMS_PER_PAGE = 3;
 
     void loadSignals();
     void drawSignalList();
     void drawEmptyMessage();
-    void drawSendingStatus();
     void sendSelectedSignal();
 };
 

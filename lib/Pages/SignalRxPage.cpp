@@ -12,8 +12,6 @@ SignalRxPage::SignalRxPage(U8G2* u8g2, RFReceiver* receiver, SignalStorage* stor
     , _signalExists(false)
     , _lastCode(0)
     , _lastCodeTime(0)
-    , _debugMode(false)
-    , _lastDebugUpdate(0)
 {
     memset(&_currentSignal, 0, sizeof(_currentSignal));
     memset(_savedName, 0, sizeof(_savedName));
@@ -25,13 +23,9 @@ void SignalRxPage::enter() {
     _signalExists = false;
     _lastCode = 0;
     _lastCodeTime = 0;
-    _debugMode = false;
 
     // 启动RF接收扫描
     _receiver->startScanning();
-
-    // 重置调试计数器
-    _receiver->resetDebugCounters();
 }
 
 void SignalRxPage::exit() {
@@ -80,6 +74,7 @@ bool SignalRxPage::update() {
             stored.freq = _currentSignal.freq;
             stored.protocol = _currentSignal.protocol;
             stored.bits = _currentSignal.bits;
+            stored.pulseLength = _currentSignal.pulseLength;
 
             if (_storage->saveSignal(stored)) {
                 strncpy(_savedName, stored.name, sizeof(_savedName) - 1);
@@ -96,9 +91,7 @@ bool SignalRxPage::update() {
 }
 
 void SignalRxPage::draw() {
-    if (_debugMode) {
-        drawDebugInfo();
-    } else if (_hasSignal) {
+    if (_hasSignal) {
         drawSignalInfo();
     } else {
         drawWaiting();
@@ -106,51 +99,73 @@ void SignalRxPage::draw() {
 }
 
 void SignalRxPage::drawWaiting() {
-    // 等待信号状态
+    // 等待信号状态 - 居中显示
     _u8g2->setFont(u8g2_font_wqy12_t_gb2312);
-    _u8g2->drawUTF8(0, 28, "等待信号...");
+
+    // 显示等待中
+    _u8g2->drawUTF8(30, 36, "等待信号...");
 
     // 显示已保存数量
     char countText[24];
-    snprintf(countText, sizeof(countText), "已保存: %d", _storage->getSignalCount());
-    _u8g2->drawUTF8(0, 44, countText);
-
-    // 提示调试模式
-    _u8g2->setFont(u8g2_font_6x10_tf);
-    _u8g2->drawStr(0, 62, "[OK] Debug mode");
+    snprintf(countText, sizeof(countText), "已保存: %d/50", _storage->getSignalCount());
+    _u8g2->drawUTF8(24, 52, countText);
 }
 
 void SignalRxPage::drawSignalInfo() {
-    // 第1行: 状态（已保存/已存在）
+    /*
+     * 布局 (内容区 Y: 16-63, 共48像素高):
+     * +------------------------------------------+
+     * | 433MHz   | 4269192           | 已 |      | Y=28
+     * | PT2262   | 0x412488          | 保 |      | Y=40
+     * | 24b      | 信号:85           | 存 |      | Y=52
+     * +------------------------------------------+
+     *
+     * 右侧竖排显示状态
+     */
+
+    _u8g2->setFont(u8g2_font_6x10_tf);
+
+    // 第1行 Y=28
+    // 左: 频率
+    char freqText[10];
+    snprintf(freqText, sizeof(freqText), "%dMHz", _currentSignal.freq);
+    _u8g2->drawStr(0, 28, freqText);
+
+    // 中: 十进制编码
+    char codeText[12];
+    snprintf(codeText, sizeof(codeText), "%lu", _currentSignal.code);
+    _u8g2->drawStr(48, 28, codeText);
+
+    // 第2行 Y=40
+    // 左: 协议
+    _u8g2->drawStr(0, 40, RFReceiver::getProtocolName(_currentSignal.protocol));
+
+    // 中: 十六进制编码
+    char hexText[12];
+    snprintf(hexText, sizeof(hexText), "0x%lX", _currentSignal.code);
+    _u8g2->drawStr(48, 40, hexText);
+
+    // 第3行 Y=52
+    // 左: 位数
+    char bitsText[8];
+    snprintf(bitsText, sizeof(bitsText), "%db", _currentSignal.bits);
+    _u8g2->drawStr(0, 52, bitsText);
+
+    // 中: 脉宽
+    char pulseText[12];
+    snprintf(pulseText, sizeof(pulseText), "%dus", _currentSignal.pulseLength);
+    _u8g2->drawStr(48, 52, pulseText);
+
+    // 右侧竖排显示状态 (使用中文字体)
     _u8g2->setFont(u8g2_font_wqy12_t_gb2312);
     if (_signalExists) {
-        _u8g2->drawUTF8(0, 28, "信号已存在");
+        _u8g2->drawUTF8(116, 28, "已");
+        _u8g2->drawUTF8(116, 42, "存");
+        _u8g2->drawUTF8(116, 56, "在");
     } else {
-        char statusText[20];
-        snprintf(statusText, sizeof(statusText), "%dMHz 已保存", _currentSignal.freq);
-        _u8g2->drawUTF8(0, 28, statusText);
-    }
-
-    // 第2行: 编码
-    _u8g2->setFont(u8g2_font_6x10_tf);
-    char codeText[24];
-    snprintf(codeText, sizeof(codeText), "Code: %lu", _currentSignal.code);
-    _u8g2->drawStr(0, 40, codeText);
-
-    // 第3行: 协议和位数
-    char protoText[24];
-    snprintf(protoText, sizeof(protoText), "%s %dbit",
-             RFReceiver::getProtocolName(_currentSignal.protocol),
-             _currentSignal.bits);
-    _u8g2->drawStr(0, 52, protoText);
-
-    // 第4行: 保存名称或频率
-    if (_signalExists) {
-        char freqText[16];
-        snprintf(freqText, sizeof(freqText), "Freq: %dMHz", _currentSignal.freq);
-        _u8g2->drawStr(0, 62, freqText);
-    } else {
-        _u8g2->drawStr(0, 62, _savedName);
+        _u8g2->drawUTF8(116, 28, "已");
+        _u8g2->drawUTF8(116, 42, "保");
+        _u8g2->drawUTF8(116, 56, "存");
     }
 }
 
@@ -162,48 +177,9 @@ bool SignalRxPage::handleButton(ButtonEvent event) {
             return false;
 
         case BTN_UP_SHORT:
-            ESP_LOGD(TAG, "按键: 上");
-            return true;
-
         case BTN_DOWN_SHORT:
-            ESP_LOGD(TAG, "按键: 下");
-            return true;
-
         case BTN_OK_SHORT:
-            // 切换调试模式
-            _debugMode = !_debugMode;
-            if (_debugMode) {
-                _receiver->resetDebugCounters();  // 进入调试模式时重置计数器
-                ESP_LOGI(TAG, "调试模式: 开启");
-            } else {
-                ESP_LOGI(TAG, "调试模式: 关闭");
-            }
-            return true;
-
         default:
             return true;
     }
-}
-
-void SignalRxPage::drawDebugInfo() {
-    // 调试模式标题
-    _u8g2->setFont(u8g2_font_6x10_tf);
-    _u8g2->drawStr(0, 26, "== DEBUG MODE ==");
-
-    // 显示433MHz中断计数和时序
-    char line1[32];
-    unsigned long irq433 = _receiver->get433InterruptCount();
-    unsigned int tim433 = _receiver->get433TimingsCount();
-    snprintf(line1, sizeof(line1), "433: IRQ=%lu T=%u", irq433, tim433);
-    _u8g2->drawStr(0, 38, line1);
-
-    // 显示315MHz中断计数和时序
-    char line2[32];
-    unsigned long irq315 = _receiver->get315InterruptCount();
-    unsigned int tim315 = _receiver->get315TimingsCount();
-    snprintf(line2, sizeof(line2), "315: IRQ=%lu T=%u", irq315, tim315);
-    _u8g2->drawStr(0, 50, line2);
-
-    // 提示
-    _u8g2->drawStr(0, 62, "[OK] Exit debug");
 }

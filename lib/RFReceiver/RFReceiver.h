@@ -17,12 +17,22 @@
 
 class RFReceiver {
 public:
+    // 最小有效位数 (低于此值视为干扰信号，常见遥控器为24位)
+    static const unsigned int MIN_VALID_BITS = 20;
+
+    // 去重窗口时间 (ms) - 防止同一信号在两个频率上重复识别
+    static const unsigned long DUPLICATE_WINDOW_MS = 100;
+
+    // 接收冷却时间 (ms) - 收到有效信号后，忽略所有信号的时间
+    static const unsigned long RECEIVE_COOLDOWN_MS = 500;
+
     // 接收到的信号结构
     struct Signal {
         unsigned long code;     // 编码值
         unsigned int protocol;  // 协议类型 (1=PT2262等)
         unsigned int bits;      // 位长度
         unsigned int freq;      // 频率 (433/315)
+        unsigned int pulseLength; // 脉宽 (微秒)
         unsigned long timestamp;// 接收时间戳
     };
 
@@ -104,6 +114,19 @@ private:
     bool _hasNewSignal;
     bool _scanning;
 
+    // 去重用变量
+    unsigned long _lastReceivedCode;    // 上次接收的编码
+    unsigned long _lastReceivedTime;    // 上次接收的时间
+
+    // 冷却时间变量
+    unsigned long _lastValidSignalTime; // 上次收到有效信号的时间
+
+    /**
+     * 检查是否在冷却期内
+     * @return true=冷却中, false=可以接收
+     */
+    bool isInCooldown();
+
     /**
      * 检查433MHz是否有信号
      */
@@ -113,6 +136,21 @@ private:
      * 检查315MHz是否有信号
      */
     void check315();
+
+    /**
+     * 验证信号是否有效 (过滤干扰)
+     * @param code 编码值
+     * @param bits 位数
+     * @return true=有效信号, false=干扰信号
+     */
+    bool isValidSignal(unsigned long code, unsigned int bits);
+
+    /**
+     * 检查是否为重复信号 (防止433/315混淆)
+     * @param code 编码值
+     * @return true=重复信号, false=新信号
+     */
+    bool isDuplicateSignal(unsigned long code);
 };
 
 #endif // RF_RECEIVER_H

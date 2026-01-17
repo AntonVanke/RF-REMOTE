@@ -26,8 +26,9 @@ public:
      * @param bits 位长度
      * @param freq 频率 (433/315)
      * @param protocol 协议类型 (1-12)
+     * @param pulseLength 脉宽 (微秒，0=使用协议默认值)
      */
-    void send(unsigned long code, unsigned int bits, unsigned int freq, unsigned int protocol);
+    void send(unsigned long code, unsigned int bits, unsigned int freq, unsigned int protocol, unsigned int pulseLength = 0);
 
     /**
      * 设置重复发送次数

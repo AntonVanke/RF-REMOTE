@@ -11,8 +11,6 @@ SignalTxPage::SignalTxPage(U8G2* u8g2, SignalStorage* storage, RFTransmitter* tr
     , _signalCount(0)
     , _selectedIndex(0)
     , _scrollOffset(0)
-    , _sending(false)
-    , _sendStartTime(0)
 {
 }
 
@@ -20,7 +18,6 @@ void SignalTxPage::enter() {
     ESP_LOGI(TAG, "进入: 发送模式页面");
     _selectedIndex = 0;
     _scrollOffset = 0;
-    _sending = false;
     loadSignals();
 }
 
@@ -34,18 +31,12 @@ void SignalTxPage::loadSignals() {
 }
 
 bool SignalTxPage::update() {
-    // 如果正在显示发送状态，检查是否超时
-    if (_sending && (millis() - _sendStartTime > SEND_DISPLAY_TIME)) {
-        _sending = false;
-        return true;  // 需要重绘
-    }
+    // 不再需要发送状态检查
     return false;
 }
 
 void SignalTxPage::draw() {
-    if (_sending) {
-        drawSendingStatus();
-    } else if (_signalCount == 0) {
+    if (_signalCount == 0) {
         drawEmptyMessage();
     } else {
         drawSignalList();
@@ -76,11 +67,11 @@ void SignalTxPage::drawSignalList() {
             _u8g2->drawStr(0, y, ">");
         }
 
-        // 信号名称 (频率_编码)
+        // 信号编号和信息 (编号. 频率 编码)
         char line[32];
-        snprintf(line, sizeof(line), "%dM %lu",
-                 _signals[i].freq, _signals[i].code);
-        _u8g2->drawStr(10, y, line);
+        snprintf(line, sizeof(line), "%d. %dM %lu",
+                 i + 1, _signals[i].freq, _signals[i].code);
+        _u8g2->drawStr(8, y, line);
 
         y += 12;
     }
@@ -96,19 +87,6 @@ void SignalTxPage::drawSignalList() {
     _u8g2->drawStr(0, 62, "[OK] Send");
 }
 
-void SignalTxPage::drawSendingStatus() {
-    _u8g2->setFont(u8g2_font_wqy12_t_gb2312);
-    _u8g2->drawUTF8(30, 32, "发送中...");
-
-    // 显示正在发送的信号信息
-    _u8g2->setFont(u8g2_font_6x10_tf);
-    char info[32];
-    snprintf(info, sizeof(info), "%dMHz %lu",
-             _signals[_selectedIndex].freq,
-             _signals[_selectedIndex].code);
-    _u8g2->drawStr(20, 50, info);
-}
-
 void SignalTxPage::sendSelectedSignal() {
     if (_signalCount == 0 || _selectedIndex >= _signalCount) {
         return;
@@ -116,22 +94,14 @@ void SignalTxPage::sendSelectedSignal() {
 
     SignalStorage::StoredSignal& sig = _signals[_selectedIndex];
 
-    ESP_LOGI(TAG, "发送信号: %s 编码:%lu 频率:%dMHz 协议:%d 位数:%d",
-             sig.name, sig.code, sig.freq, sig.protocol, sig.bits);
+    ESP_LOGI(TAG, "发送信号: %s 编码:%lu 频率:%dMHz 协议:%d 位数:%d 脉宽:%dus",
+             sig.name, sig.code, sig.freq, sig.protocol, sig.bits, sig.pulseLength);
 
-    _sending = true;
-    _sendStartTime = millis();
-
-    // 发送信号
-    _transmitter->send(sig.code, sig.bits, sig.freq, sig.protocol);
+    // 直接发送信号，不改变UI状态
+    _transmitter->send(sig.code, sig.bits, sig.freq, sig.protocol, sig.pulseLength);
 }
 
 bool SignalTxPage::handleButton(ButtonEvent event) {
-    // 发送中不响应按键
-    if (_sending) {
-        return true;
-    }
-
     switch (event) {
         case BTN_UP_LONG:
             ESP_LOGD(TAG, "按键: 上键长按 - 返回主菜单");
