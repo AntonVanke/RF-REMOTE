@@ -1,5 +1,8 @@
 #include "AboutPage.h"
 #include <Arduino.h>
+#include <esp32-hal-log.h>
+
+static const char* TAG = "AboutPage";
 
 AboutPage::AboutPage(U8G2* u8g2, BatteryMonitor* battery)
     : _u8g2(u8g2)
@@ -17,7 +20,7 @@ void AboutPage::enter() {
     _frameCount = 0;
     _currentFPS = 0;
     _lastFPSUpdate = millis();
-    Serial.println("进入: 关于页面");
+    ESP_LOGI(TAG, "进入: 关于页面");
 }
 
 bool AboutPage::update() {
@@ -118,20 +121,19 @@ void AboutPage::draw() {
 bool AboutPage::handleButton(ButtonEvent event) {
     switch (event) {
         case BTN_UP_LONG:
-            // 长按上键返回主菜单，返回false表示请求返回
-            Serial.println("按键: 上键长按 - 返回主菜单");
+            ESP_LOGD(TAG, "按键: 上键长按 - 返回主菜单");
             return false;
 
         case BTN_UP_SHORT:
-            Serial.println("按键: 上 (关于页面)");
+            ESP_LOGD(TAG, "按键: 上");
             return true;
 
         case BTN_DOWN_SHORT:
-            Serial.println("按键: 下 (关于页面)");
+            ESP_LOGD(TAG, "按键: 下");
             return true;
 
         case BTN_OK_SHORT:
-            Serial.println("按键: 确认 (关于页面)");
+            ESP_LOGD(TAG, "按键: 确认");
             return true;
 
         default:

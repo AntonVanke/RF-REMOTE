@@ -1,5 +1,8 @@
 #include "SignalTxPage.h"
 #include <Arduino.h>
+#include <esp32-hal-log.h>
+
+static const char* TAG = "SignalTx";
 
 SignalTxPage::SignalTxPage(U8G2* u8g2)
     : _u8g2(u8g2)
@@ -7,7 +10,7 @@ SignalTxPage::SignalTxPage(U8G2* u8g2)
 }
 
 void SignalTxPage::enter() {
-    Serial.println("进入: 发送模式页面");
+    ESP_LOGI(TAG, "进入: 发送模式页面");
     // TODO: 加载已保存的信号列表
 }
 
@@ -21,29 +24,24 @@ void SignalTxPage::draw() {
     _u8g2->drawStr(10, 50, "Long press UP to return");
 
     // TODO: 显示已保存的信号列表
-    // 用户可以选择信号并发送
 }
 
 bool SignalTxPage::handleButton(ButtonEvent event) {
     switch (event) {
         case BTN_UP_LONG:
-            // 长按上键返回主菜单
-            Serial.println("按键: 上键长按 - 返回主菜单");
+            ESP_LOGD(TAG, "按键: 上键长按 - 返回主菜单");
             return false;
 
         case BTN_UP_SHORT:
-            Serial.println("按键: 上 (发送模式页面)");
-            // TODO: 选择上一个信号
+            ESP_LOGD(TAG, "按键: 上");
             return true;
 
         case BTN_DOWN_SHORT:
-            Serial.println("按键: 下 (发送模式页面)");
-            // TODO: 选择下一个信号
+            ESP_LOGD(TAG, "按键: 下");
             return true;
 
         case BTN_OK_SHORT:
-            Serial.println("按键: 确认 (发送模式页面)");
-            // TODO: 发送选中的信号
+            ESP_LOGD(TAG, "按键: 确认");
             return true;
 
         default:

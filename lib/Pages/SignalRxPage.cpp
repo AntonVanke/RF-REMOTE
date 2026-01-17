@@ -1,5 +1,8 @@
 #include "SignalRxPage.h"
 #include <Arduino.h>
+#include <esp32-hal-log.h>
+
+static const char* TAG = "SignalRx";
 
 SignalRxPage::SignalRxPage(U8G2* u8g2)
     : _u8g2(u8g2)
@@ -7,7 +10,7 @@ SignalRxPage::SignalRxPage(U8G2* u8g2)
 }
 
 void SignalRxPage::enter() {
-    Serial.println("进入: 信号接收页面");
+    ESP_LOGI(TAG, "进入: 信号接收页面");
     // TODO: 启动RF接收
 }
 
@@ -21,30 +24,24 @@ void SignalRxPage::draw() {
     _u8g2->drawStr(10, 50, "Long press UP to return");
 
     // TODO: 显示接收到的信号信息
-    // if (_receivedCode != 0) {
-    //     显示协议、编码、位数等
-    // }
 }
 
 bool SignalRxPage::handleButton(ButtonEvent event) {
     switch (event) {
         case BTN_UP_LONG:
-            // 长按上键返回主菜单
-            Serial.println("按键: 上键长按 - 返回主菜单");
-            // TODO: 停止RF接收
+            ESP_LOGD(TAG, "按键: 上键长按 - 返回主菜单");
             return false;
 
         case BTN_UP_SHORT:
-            Serial.println("按键: 上 (信号接收页面)");
+            ESP_LOGD(TAG, "按键: 上");
             return true;
 
         case BTN_DOWN_SHORT:
-            Serial.println("按键: 下 (信号接收页面)");
+            ESP_LOGD(TAG, "按键: 下");
             return true;
 
         case BTN_OK_SHORT:
-            Serial.println("按键: 确认 (信号接收页面)");
-            // TODO: 保存接收到的信号
+            ESP_LOGD(TAG, "按键: 确认");
             return true;
 
         default:

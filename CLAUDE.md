@@ -150,6 +150,37 @@ build_flags =
 - 发射和接收引脚分开
 - 使用rc-switch库进行编解码
 
+### 日志系统
+使用ESP-IDF内置日志宏替代Serial.print，支持日志级别过滤。
+
+**日志级别配置** (platformio.ini):
+```ini
+build_flags =
+    -DCORE_DEBUG_LEVEL=4  ; 0=None, 1=Error, 2=Warn, 3=Info, 4=Debug, 5=Verbose
+```
+
+**日志宏使用**:
+```cpp
+#include <esp32-hal-log.h>
+static const char* TAG = "ModuleName";
+
+ESP_LOGE(TAG, "错误: %s", error);     // Error级别
+ESP_LOGW(TAG, "警告: %s", warning);   // Warning级别
+ESP_LOGI(TAG, "信息: %s", info);      // Info级别
+ESP_LOGD(TAG, "调试: %s", debug);     // Debug级别
+ESP_LOGV(TAG, "详细: %s", verbose);   // Verbose级别
+```
+
+**各模块TAG定义**:
+| 模块 | TAG |
+|------|-----|
+| main.cpp | "Main" |
+| Display.cpp | "Display" |
+| ButtonManager.cpp | "Button" |
+| AboutPage.cpp | "AboutPage" |
+| SignalRxPage.cpp | "SignalRx" |
+| SignalTxPage.cpp | "SignalTx" |
+
 ## 已实现功能
 
 1. **主菜单系统**:

@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <esp32-hal-log.h>
 #include "Display.h"
 #include "StatusBar.h"
 #include "Menu.h"
@@ -11,6 +12,9 @@
 #include "AboutPage.h"
 #include "SignalRxPage.h"
 #include "SignalTxPage.h"
+
+// 日志标签
+static const char* TAG = "Main";
 
 // 全局对象
 Display display;
@@ -146,9 +150,9 @@ void setup() {
     Serial.begin(115200);
     delay(1000);
 
-    Serial.println("\n==============================");
-    Serial.println("RF遥控器启动中...");
-    Serial.println("==============================");
+    ESP_LOGI(TAG, "==============================");
+    ESP_LOGI(TAG, "RF遥控器启动中...");
+    ESP_LOGI(TAG, "==============================");
 
     display.scanI2C();
     display.begin();
@@ -175,8 +179,8 @@ void setup() {
     statusBarDirty = false;
     contentDirty = false;
 
-    Serial.println("RF遥控器启动完成 (局部刷新已启用)");
-    Serial.println("==============================\n");
+    ESP_LOGI(TAG, "RF遥控器启动完成 (局部刷新已启用)");
+    ESP_LOGI(TAG, "==============================");
 }
 
 void handleButtonEvent(ButtonEvent event) {
@@ -184,33 +188,32 @@ void handleButtonEvent(ButtonEvent event) {
         switch (event) {
             case BTN_UP_SHORT:
                 menu->previous();
-                contentDirty = true;  // 只需刷新内容区
-                Serial.println("按键: 上");
+                contentDirty = true;
+                ESP_LOGD(TAG, "按键: 上");
                 break;
 
             case BTN_DOWN_SHORT:
                 menu->next();
-                contentDirty = true;  // 只需刷新内容区
-                Serial.println("按键: 下");
+                contentDirty = true;
+                ESP_LOGD(TAG, "按键: 下");
                 break;
 
             case BTN_OK_SHORT:
                 {
                     int selection = menu->getCurrentSelection();
-                    Serial.print("按键: 确认 - 选择了: ");
-                    Serial.println(menuItems[selection]);
+                    ESP_LOGD(TAG, "按键: 确认 - 选择了: %s", menuItems[selection]);
 
                     currentPage = getPageStateByIndex(selection);
                     currentPageObj = getPageByIndex(selection);
                     if (currentPageObj) {
                         currentPageObj->enter();
                     }
-                    fullRefresh = true;  // 页面切换需要全屏刷新
+                    fullRefresh = true;
                 }
                 break;
 
             case BTN_UP_LONG:
-                Serial.println("按键: 上键长按 (在主菜单，无操作)");
+                ESP_LOGD(TAG, "按键: 上键长按 (在主菜单，无操作)");
                 break;
 
             default:
@@ -222,9 +225,9 @@ void handleButtonEvent(ButtonEvent event) {
             if (!handled) {
                 currentPage = PAGE_MENU;
                 currentPageObj = nullptr;
-                fullRefresh = true;  // 返回菜单需要全屏刷新
+                fullRefresh = true;
             } else {
-                contentDirty = true;  // 子页面按键只刷新内容区
+                contentDirty = true;
             }
         }
     }

@@ -4,6 +4,9 @@
  */
 
 #include "ButtonManager.h"
+#include <esp32-hal-log.h>
+
+static const char* TAG = "Button";
 
 // 静态成员初始化
 ButtonManager::ButtonState ButtonManager::_upBtn = {BTN_UP_PIN, false, 0, false, BTN_UP_SHORT, BTN_UP_LONG};
@@ -21,7 +24,7 @@ ButtonManager::ButtonManager() {
 }
 
 void ButtonManager::begin() {
-    Serial.println("初始化按键管理器...");
+    ESP_LOGI(TAG, "初始化按键管理器...");
 
     // 配置按键引脚 (Active Low, 内部上拉)
     pinMode(_upBtn.pin, INPUT_PULLUP);
@@ -44,7 +47,7 @@ void ButtonManager::begin() {
         1                         // 核心1
     );
 
-    Serial.println("按键管理器初始化完成");
+    ESP_LOGI(TAG, "按键管理器初始化完成");
 }
 
 void IRAM_ATTR ButtonManager::handleUpButton() {

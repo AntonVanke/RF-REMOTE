@@ -4,6 +4,9 @@
  */
 
 #include "Display.h"
+#include <esp32-hal-log.h>
+
+static const char* TAG = "Display";
 
 Display::Display()
     #ifdef USE_HW_I2C
@@ -17,17 +20,17 @@ Display::Display()
 
 bool Display::begin() {
     #ifdef USE_HW_I2C
-        Serial.println("初始化OLED显示屏 (硬件I2C, 1MHz)...");
+        ESP_LOGI(TAG, "初始化OLED显示屏 (硬件I2C, 1MHz)...");
 
         // 设置I2C时钟频率为1MHz (ESP32-C3支持)
         Wire.begin(OLED_SDA_PIN, OLED_SCL_PIN);
         Wire.setClock(1000000);  // 1MHz - SSD1306最高支持
     #else
-        Serial.println("初始化OLED显示屏 (软件I2C)...");
+        ESP_LOGI(TAG, "初始化OLED显示屏 (软件I2C)...");
     #endif
 
     if (!_u8g2.begin()) {
-        Serial.println("错误: OLED初始化失败!");
+        ESP_LOGE(TAG, "OLED初始化失败!");
         return false;
     }
 
@@ -37,16 +40,13 @@ bool Display::begin() {
     // 设置I2C时钟 (对软件I2C也有效)
     _u8g2.setBusClock(400000);  // 400kHz
 
-    Serial.println("OLED初始化成功");
+    ESP_LOGI(TAG, "OLED初始化成功");
     return true;
 }
 
 void Display::scanI2C() {
-    Serial.println("\n开始扫描I2C设备...");
-    Serial.print("SDA引脚: ");
-    Serial.print(OLED_SDA_PIN);
-    Serial.print(", SCL引脚: ");
-    Serial.println(OLED_SCL_PIN);
+    ESP_LOGD(TAG, "开始扫描I2C设备...");
+    ESP_LOGD(TAG, "SDA引脚: %d, SCL引脚: %d", OLED_SDA_PIN, OLED_SCL_PIN);
 
     byte count = 0;
     Wire.begin(OLED_SDA_PIN, OLED_SCL_PIN);
@@ -54,15 +54,12 @@ void Display::scanI2C() {
     for (byte i = 1; i < 127; i++) {
         Wire.beginTransmission(i);
         if (Wire.endTransmission() == 0) {
-            Serial.print("发现I2C设备，地址: 0x");
-            Serial.println(i, HEX);
+            ESP_LOGD(TAG, "发现I2C设备，地址: 0x%02X", i);
             count++;
         }
     }
 
-    Serial.print("扫描完成，找到 ");
-    Serial.print(count);
-    Serial.println(" 个设备\n");
+    ESP_LOGD(TAG, "扫描完成，找到 %d 个设备", count);
 }
 
 U8G2* Display::getU8g2() {
