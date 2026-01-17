@@ -18,13 +18,13 @@ BatteryMonitor battery;
 ButtonManager buttons;
 StatusBar* statusBar;
 Menu* menu;
-U8G2* u8g2;  // 缓存U8G2指针
+U8G2* u8g2;
 
 // 页面对象
 AboutPage* aboutPage;
 SignalRxPage* signalRxPage;
 SignalTxPage* signalTxPage;
-Page* currentPageObj = nullptr;  // 当前页面对象指针
+Page* currentPageObj = nullptr;
 
 // 菜单配置
 const char* menuItems[] = {
@@ -34,15 +34,27 @@ const char* menuItems[] = {
 };
 const int MENU_ITEMS_COUNT = 3;
 
-// 当前页面状态
+// 页面状态
 enum PageState {
-    PAGE_MENU,          // 主菜单
-    PAGE_SIGNAL_RX,     // 信号接收
-    PAGE_SIGNAL_TX,     // 发送模式
-    PAGE_ABOUT          // 关于页面
+    PAGE_MENU,
+    PAGE_SIGNAL_RX,
+    PAGE_SIGNAL_TX,
+    PAGE_ABOUT
 };
 PageState currentPage = PAGE_MENU;
 PageState lastPage = PAGE_MENU;
+
+// ============ 局部刷新配置 ============
+// 屏幕区域定义 (tile坐标，每个tile=8像素)
+const uint8_t SCREEN_WIDTH_TILES = 16;   // 128/8 = 16 tiles
+const uint8_t STATUSBAR_TILES = 2;       // 状态栏高度: 16像素 = 2 tiles
+const uint8_t CONTENT_START_TILE = 2;    // 内容区起始tile
+const uint8_t CONTENT_TILES = 6;         // 内容区高度: 48像素 = 6 tiles
+
+// 脏区域标志
+bool statusBarDirty = true;   // 状态栏需要刷新
+bool contentDirty = true;     // 内容区需要刷新
+bool fullRefresh = true;      // 需要全屏刷新
 
 // 电池状态缓存
 uint8_t lastBatteryPercent = 0;
@@ -51,7 +63,65 @@ bool lastIsUSBPowered = false;
 unsigned long lastBatteryUpdate = 0;
 const unsigned long BATTERY_UPDATE_INTERVAL = 1000;
 
-// 根据菜单选择获取对应的页面对象
+// 页面标题缓存 (用于检测标题变化)
+const char* lastTitle = nullptr;
+
+// ============ 局部刷新函数 ============
+
+// 清除指定区域 (像素坐标)
+inline void clearArea(int16_t x, int16_t y, int16_t w, int16_t h) {
+    u8g2->setDrawColor(0);
+    u8g2->drawBox(x, y, w, h);
+    u8g2->setDrawColor(1);
+}
+
+// 只刷新状态栏区域
+void refreshStatusBar(const char* title) {
+    // 清除状态栏区域
+    clearArea(0, 0, 128, 16);
+
+    // 绘制状态栏
+    statusBar->draw(title, lastBatteryPercent, lastIsCharging, lastIsUSBPowered);
+
+    // 只发送状态栏区域
+    u8g2->updateDisplayArea(0, 0, SCREEN_WIDTH_TILES, STATUSBAR_TILES);
+}
+
+// 只刷新内容区域
+void refreshContent() {
+    // 清除内容区域
+    clearArea(0, 16, 128, 48);
+
+    // 绘制内容
+    if (currentPage == PAGE_MENU) {
+        menu->draw();
+    } else if (currentPageObj) {
+        currentPageObj->draw();
+    }
+
+    // 只发送内容区域
+    u8g2->updateDisplayArea(0, CONTENT_START_TILE, SCREEN_WIDTH_TILES, CONTENT_TILES);
+}
+
+// 全屏刷新
+void refreshAll(const char* title) {
+    u8g2->clearBuffer();
+
+    // 绘制状态栏
+    statusBar->draw(title, lastBatteryPercent, lastIsCharging, lastIsUSBPowered);
+
+    // 绘制内容
+    if (currentPage == PAGE_MENU) {
+        menu->draw();
+    } else if (currentPageObj) {
+        currentPageObj->draw();
+    }
+
+    u8g2->sendBuffer();
+}
+
+// ============ 辅助函数 ============
+
 Page* getPageByIndex(int index) {
     switch (index) {
         case 0: return signalRxPage;
@@ -61,7 +131,6 @@ Page* getPageByIndex(int index) {
     }
 }
 
-// 根据菜单选择获取对应的页面状态
 PageState getPageStateByIndex(int index) {
     switch (index) {
         case 0: return PAGE_SIGNAL_RX;
@@ -71,6 +140,8 @@ PageState getPageStateByIndex(int index) {
     }
 }
 
+// ============ 主程序 ============
+
 void setup() {
     Serial.begin(115200);
     delay(1000);
@@ -79,53 +150,47 @@ void setup() {
     Serial.println("RF遥控器启动中...");
     Serial.println("==============================");
 
-    // 初始化显示
     display.scanI2C();
     display.begin();
     u8g2 = display.getU8g2();
 
-    // 初始化电池监测
     battery.begin();
-
-    // 初始化按键
     buttons.begin();
 
-    // 创建UI模块
     statusBar = new StatusBar(u8g2);
     menu = new Menu(u8g2, menuItems, MENU_ITEMS_COUNT);
 
-    // 创建页面对象
     aboutPage = new AboutPage(u8g2, &battery);
     signalRxPage = new SignalRxPage(u8g2);
     signalTxPage = new SignalTxPage(u8g2);
 
-    // 初始化电池状态
     lastBatteryPercent = battery.getBatteryPercent();
     lastIsCharging = battery.isCharging();
     lastIsUSBPowered = battery.isUSBPowered();
 
-    // 绘制初始界面
-    u8g2->clearBuffer();
-    statusBar->draw("RF遥控器", lastBatteryPercent, lastIsCharging, lastIsUSBPowered);
-    menu->draw();
-    u8g2->sendBuffer();
+    // 初始全屏刷新
+    refreshAll("RF遥控器");
+    lastTitle = "RF遥控器";
+    fullRefresh = false;
+    statusBarDirty = false;
+    contentDirty = false;
 
-    Serial.println("RF遥控器启动完成");
+    Serial.println("RF遥控器启动完成 (局部刷新已启用)");
     Serial.println("==============================\n");
 }
 
-// 处理按键事件
 void handleButtonEvent(ButtonEvent event) {
     if (currentPage == PAGE_MENU) {
-        // 主菜单处理
         switch (event) {
             case BTN_UP_SHORT:
                 menu->previous();
+                contentDirty = true;  // 只需刷新内容区
                 Serial.println("按键: 上");
                 break;
 
             case BTN_DOWN_SHORT:
                 menu->next();
+                contentDirty = true;  // 只需刷新内容区
                 Serial.println("按键: 下");
                 break;
 
@@ -135,12 +200,12 @@ void handleButtonEvent(ButtonEvent event) {
                     Serial.print("按键: 确认 - 选择了: ");
                     Serial.println(menuItems[selection]);
 
-                    // 进入子页面
                     currentPage = getPageStateByIndex(selection);
                     currentPageObj = getPageByIndex(selection);
                     if (currentPageObj) {
                         currentPageObj->enter();
                     }
+                    fullRefresh = true;  // 页面切换需要全屏刷新
                 }
                 break;
 
@@ -152,43 +217,41 @@ void handleButtonEvent(ButtonEvent event) {
                 break;
         }
     } else {
-        // 子页面处理 - 委托给页面对象
         if (currentPageObj) {
             bool handled = currentPageObj->handleButton(event);
             if (!handled) {
-                // 页面请求返回主菜单
                 currentPage = PAGE_MENU;
                 currentPageObj = nullptr;
+                fullRefresh = true;  // 返回菜单需要全屏刷新
+            } else {
+                contentDirty = true;  // 子页面按键只刷新内容区
             }
         }
     }
 }
 
 void loop() {
-    bool needRedraw = false;
-
     // 处理按键事件
     if (buttons.hasEvent()) {
         while (buttons.hasEvent()) {
             ButtonEvent event = buttons.getEvent();
             handleButtonEvent(event);
         }
-        needRedraw = true;
     }
 
     // 检查页面是否改变
     if (currentPage != lastPage) {
         lastPage = currentPage;
-        needRedraw = true;
+        fullRefresh = true;
     }
 
     // 页面更新
     if (currentPageObj) {
         if (currentPageObj->update()) {
-            needRedraw = true;
+            contentDirty = true;  // 页面更新只刷新内容区
         }
         if (currentPageObj->needsConstantRefresh()) {
-            needRedraw = true;
+            contentDirty = true;
         }
     }
 
@@ -205,26 +268,35 @@ void loop() {
             lastBatteryPercent = batteryPercent;
             lastIsCharging = isCharging;
             lastIsUSBPowered = isUSBPowered;
-            needRedraw = true;
+            statusBarDirty = true;  // 电池变化只刷新状态栏
         }
 
         lastBatteryUpdate = now;
     }
 
-    // 重绘屏幕
-    if (needRedraw) {
-        u8g2->clearBuffer();
+    // 获取当前标题
+    const char* currentTitle = (currentPage == PAGE_MENU) ? "RF遥控器" :
+                               (currentPageObj ? currentPageObj->getTitle() : "RF遥控器");
 
-        if (currentPage == PAGE_MENU) {
-            // 主菜单
-            statusBar->draw("RF遥控器", lastBatteryPercent, lastIsCharging, lastIsUSBPowered);
-            menu->draw();
-        } else if (currentPageObj) {
-            // 子页面
-            statusBar->draw(currentPageObj->getTitle(), lastBatteryPercent, lastIsCharging, lastIsUSBPowered);
-            currentPageObj->draw();
+    // ============ 智能刷新 ============
+    if (fullRefresh) {
+        // 全屏刷新
+        refreshAll(currentTitle);
+        lastTitle = currentTitle;
+        fullRefresh = false;
+        statusBarDirty = false;
+        contentDirty = false;
+    } else {
+        // 局部刷新
+        if (statusBarDirty) {
+            refreshStatusBar(currentTitle);
+            lastTitle = currentTitle;
+            statusBarDirty = false;
         }
 
-        u8g2->sendBuffer();
+        if (contentDirty) {
+            refreshContent();
+            contentDirty = false;
+        }
     }
 }
