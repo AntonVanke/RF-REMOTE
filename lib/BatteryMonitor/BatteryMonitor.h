@@ -10,6 +10,7 @@
 #define BATTERY_MONITOR_H
 
 #include <Arduino.h>
+#include "pin_config.h"
 
 class BatteryMonitor {
 public:

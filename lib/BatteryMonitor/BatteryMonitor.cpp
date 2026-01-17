@@ -6,14 +6,13 @@
 #include "BatteryMonitor.h"
 
 BatteryMonitor::BatteryMonitor()
-    : _adcPin(4),                      // GPIO4 (BAT_ADC)
-      _adcResolution(4095.0),          // 12位ADC
-      _adcVref(3.0),                   // 参考电压
-      _calibrationSlope(0.565),        // 预设校准斜率
-      _calibrationOffset(1.88) {       // 预设校准偏移
-    // 计算分压比: R25=100kΩ, R24=10kΩ
-    // (100 + 10) / 10 = 11
-    _voltageDividerRatio = 11.0;
+    : _adcPin(BAT_ADC_PIN),
+      _adcResolution(BAT_ADC_RESOLUTION),
+      _adcVref(BAT_ADC_VREF),
+      _calibrationSlope(0.565),
+      _calibrationOffset(1.88) {
+    // 计算分压比: (R1 + R2) / R2
+    _voltageDividerRatio = (float)(BAT_DIVIDER_R1 + BAT_DIVIDER_R2) / BAT_DIVIDER_R2;
 }
 
 void BatteryMonitor::begin() {

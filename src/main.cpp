@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <BatteryMonitor.h>
+#include "pin_config.h"
 
 BatteryMonitor battery;
 
