@@ -40,11 +40,11 @@ public:
     U8G2* getU8g2();
 
 private:
-    // 硬件I2C (如果不工作，可以改回软件I2C)
-    // 硬件I2C: U8G2_SSD1306_128X64_NONAME_F_HW_I2C
-    // 软件I2C: U8G2_SSD1306_128X64_NONAME_F_SW_I2C
+    // 硬件I2C: U8G2_SSD1306_128X64_NONAME_F_HW_I2C (更快)
+    // 软件I2C: U8G2_SSD1306_128X64_NONAME_F_SW_I2C (更稳定)
+    // 2ND_HW_I2C: 使用第二I2C总线 (ESP32-C3默认)
     #ifdef USE_HW_I2C
-        U8G2_SSD1306_128X64_NONAME_F_HW_I2C _u8g2;
+        U8G2_SSD1306_128X64_NONAME_F_2ND_HW_I2C _u8g2;
     #else
         U8G2_SSD1306_128X64_NONAME_F_SW_I2C _u8g2;
     #endif

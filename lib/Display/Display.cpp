@@ -17,13 +17,13 @@ Display::Display()
 
 bool Display::begin() {
     #ifdef USE_HW_I2C
-        Serial.println("初始化OLED显示屏 (硬件I2C, 800kHz)...");
+        Serial.println("初始化OLED显示屏 (硬件I2C, 1MHz)...");
 
-        // 设置I2C时钟频率为800kHz
+        // 设置I2C时钟频率为1MHz (ESP32-C3支持)
         Wire.begin(OLED_SDA_PIN, OLED_SCL_PIN);
-        Wire.setClock(800000);
+        Wire.setClock(1000000);  // 1MHz - SSD1306最高支持
     #else
-        Serial.println("初始化OLED显示屏 (优化软件I2C)...");
+        Serial.println("初始化OLED显示屏 (软件I2C)...");
     #endif
 
     if (!_u8g2.begin()) {
@@ -33,6 +33,9 @@ bool Display::begin() {
 
     _u8g2.enableUTF8Print();
     _u8g2.setContrast(255);
+
+    // 设置I2C时钟 (对软件I2C也有效)
+    _u8g2.setBusClock(400000);  // 400kHz
 
     Serial.println("OLED初始化成功");
     return true;
