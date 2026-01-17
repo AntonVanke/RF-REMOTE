@@ -83,8 +83,8 @@ private:
     // 长按检测时间 (ms)
     static const unsigned long LONG_PRESS_TIME = 500;
 
-    // 防抖延迟 (ms)
-    static const unsigned long DEBOUNCE_DELAY = 50;
+    // 防抖延迟 (ms) - 优化为30ms提高响应速度
+    static const unsigned long DEBOUNCE_DELAY = 30;
 
     // 长按检测任务句柄
     static TaskHandle_t _longPressTaskHandle;

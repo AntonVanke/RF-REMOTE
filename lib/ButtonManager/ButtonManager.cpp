@@ -90,6 +90,9 @@ void ButtonManager::checkLongPress(void* parameter) {
 
         // 检查上键
         if (_upBtn.pressed) {
+            // 立即检查按键释放状态
+            bool isReleased = digitalRead(_upBtn.pin) == HIGH;
+
             if (!_upBtn.longPressTriggered && (now - _upBtn.pressTime >= LONG_PRESS_TIME)) {
                 // 长按触发
                 _upBtn.longPressTriggered = true;
@@ -97,47 +100,61 @@ void ButtonManager::checkLongPress(void* parameter) {
             }
 
             // 检测按键释放
-            if (digitalRead(_upBtn.pin) == HIGH) {
-                if (!_upBtn.longPressTriggered) {
-                    // 短按触发
-                    pushEvent(_upBtn.shortEvent);
+            if (isReleased) {
+                // 延迟5ms再次确认（防抖）
+                vTaskDelay(pdMS_TO_TICKS(5));
+                if (digitalRead(_upBtn.pin) == HIGH) {
+                    if (!_upBtn.longPressTriggered) {
+                        // 短按触发
+                        pushEvent(_upBtn.shortEvent);
+                    }
+                    _upBtn.pressed = false;
                 }
-                _upBtn.pressed = false;
             }
         }
 
         // 检查确认键
         if (_okBtn.pressed) {
+            bool isReleased = digitalRead(_okBtn.pin) == HIGH;
+
             if (!_okBtn.longPressTriggered && (now - _okBtn.pressTime >= LONG_PRESS_TIME)) {
                 _okBtn.longPressTriggered = true;
                 pushEvent(_okBtn.longEvent);
             }
 
-            if (digitalRead(_okBtn.pin) == HIGH) {
-                if (!_okBtn.longPressTriggered) {
-                    pushEvent(_okBtn.shortEvent);
+            if (isReleased) {
+                vTaskDelay(pdMS_TO_TICKS(5));
+                if (digitalRead(_okBtn.pin) == HIGH) {
+                    if (!_okBtn.longPressTriggered) {
+                        pushEvent(_okBtn.shortEvent);
+                    }
+                    _okBtn.pressed = false;
                 }
-                _okBtn.pressed = false;
             }
         }
 
         // 检查下键
         if (_downBtn.pressed) {
+            bool isReleased = digitalRead(_downBtn.pin) == HIGH;
+
             if (!_downBtn.longPressTriggered && (now - _downBtn.pressTime >= LONG_PRESS_TIME)) {
                 _downBtn.longPressTriggered = true;
                 pushEvent(_downBtn.longEvent);
             }
 
-            if (digitalRead(_downBtn.pin) == HIGH) {
-                if (!_downBtn.longPressTriggered) {
-                    pushEvent(_downBtn.shortEvent);
+            if (isReleased) {
+                vTaskDelay(pdMS_TO_TICKS(5));
+                if (digitalRead(_downBtn.pin) == HIGH) {
+                    if (!_downBtn.longPressTriggered) {
+                        pushEvent(_downBtn.shortEvent);
+                    }
+                    _downBtn.pressed = false;
                 }
-                _downBtn.pressed = false;
             }
         }
 
-        // 每10ms检查一次
-        vTaskDelay(pdMS_TO_TICKS(10));
+        // 缩短检查间隔到5ms，提高响应速度
+        vTaskDelay(pdMS_TO_TICKS(5));
     }
 }
 
