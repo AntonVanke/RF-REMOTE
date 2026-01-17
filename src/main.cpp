@@ -7,6 +7,11 @@
 #include "ButtonManager.h"
 #include "pin_config.h"
 
+// RF模块
+#include "RFReceiver.h"
+#include "RFTransmitter.h"
+#include "SignalStorage.h"
+
 // 页面模块
 #include "Page.h"
 #include "AboutPage.h"
@@ -20,6 +25,9 @@ static const char* TAG = "Main";
 Display display;
 BatteryMonitor battery;
 ButtonManager buttons;
+RFReceiver rfReceiver;
+RFTransmitter rfTransmitter;
+SignalStorage signalStorage;
 StatusBar* statusBar;
 Menu* menu;
 U8G2* u8g2;
@@ -161,12 +169,17 @@ void setup() {
     battery.begin();
     buttons.begin();
 
+    // 初始化RF接收、发送和信号存储
+    rfReceiver.begin();
+    rfTransmitter.begin();
+    signalStorage.begin();
+
     statusBar = new StatusBar(u8g2);
     menu = new Menu(u8g2, menuItems, MENU_ITEMS_COUNT);
 
     aboutPage = new AboutPage(u8g2, &battery);
-    signalRxPage = new SignalRxPage(u8g2);
-    signalTxPage = new SignalTxPage(u8g2);
+    signalRxPage = new SignalRxPage(u8g2, &rfReceiver, &signalStorage);
+    signalTxPage = new SignalTxPage(u8g2, &signalStorage, &rfTransmitter);
 
     lastBatteryPercent = battery.getBatteryPercent();
     lastIsCharging = battery.isCharging();

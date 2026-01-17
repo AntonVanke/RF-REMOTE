@@ -18,6 +18,11 @@ public:
     virtual void enter() = 0;
 
     /**
+     * 退出页面时调用，用于清理资源
+     */
+    virtual void exit() {}
+
+    /**
      * 绘制页面内容 (不包括状态栏)
      */
     virtual void draw() = 0;

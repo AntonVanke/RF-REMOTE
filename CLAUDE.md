@@ -85,6 +85,21 @@ RF-REMOTE/
 │   │   ├── SignalRxPage.cpp
 │   │   ├── SignalTxPage.h    # 发送模式页面
 │   │   └── SignalTxPage.cpp
+│   ├── RCSwitch315/          # 315MHz RF收发库 (本地库，基于rc-switch)
+│   │   ├── RCSwitch315.h
+│   │   └── RCSwitch315.cpp
+│   ├── RCSwitch433/          # 433MHz RF收发库 (本地库，基于rc-switch)
+│   │   ├── RCSwitch433.h
+│   │   └── RCSwitch433.cpp
+│   ├── RFReceiver/           # RF信号接收模块 (双频同时监听)
+│   │   ├── RFReceiver.h
+│   │   └── RFReceiver.cpp
+│   ├── RFTransmitter/        # RF信号发送模块 (双频发送)
+│   │   ├── RFTransmitter.h
+│   │   └── RFTransmitter.cpp
+│   ├── SignalStorage/        # 信号存储模块
+│   │   ├── SignalStorage.h
+│   │   └── SignalStorage.cpp
 │   └── StatusBar/            # 状态栏模块
 │       ├── StatusBar.h
 │       └── StatusBar.cpp
@@ -99,11 +114,19 @@ RF-REMOTE/
 ```ini
 lib_deps =
     olikraus/U8g2           # OLED显示库
+    bblanchon/ArduinoJson   # JSON处理库
 ```
+
+**内置库**:
+- LittleFS: ESP32内置文件系统，用于信号存储
+
+**本地库** (lib/目录):
+- RCSwitch433: 433MHz RF收发库，基于rc-switch修改，支持调试功能
+- RCSwitch315: 315MHz RF收发库，基于rc-switch修改，支持调试功能
 
 **注意**:
 - 按键管理使用自定义ButtonManager模块 (基于GPIO中断+FreeRTOS)
-- RF信号处理库待后续添加 (推荐 sui77/rc-switch)
+- RF收发使用本地库，不再依赖外部rc-switch库
 
 ## 开发规范
 
@@ -148,7 +171,11 @@ build_flags =
 ### RF信号处理
 - 433MHz和315MHz模块独立控制
 - 发射和接收引脚分开
-- 使用rc-switch库进行编解码
+- **双频同时监听**: 使用两个独立的本地库
+  - RCSwitch433: 处理433MHz (RX: IO1, TX: IO0)
+  - RCSwitch315: 处理315MHz (RX: IO3, TX: IO2)
+- 两个库各自维护独立的静态变量，可同时工作
+- 支持接收和发送功能，12种协议
 
 ### 日志系统
 使用ESP-IDF内置日志宏替代Serial.print，支持日志级别过滤。
@@ -180,6 +207,9 @@ ESP_LOGV(TAG, "详细: %s", verbose);   // Verbose级别
 | AboutPage.cpp | "AboutPage" |
 | SignalRxPage.cpp | "SignalRx" |
 | SignalTxPage.cpp | "SignalTx" |
+| RFReceiver.cpp | "RFReceiver" |
+| RFTransmitter.cpp | "RFTransmitter" |
+| SignalStorage.cpp | "Storage" |
 
 ## 已实现功能
 
@@ -217,12 +247,33 @@ ESP_LOGV(TAG, "详细: %s", verbose);   // Verbose级别
    - 各页面独立模块，职责清晰
    - main.cpp仅负责路由和初始化
 
+7. **RF信号接收**:
+   - 支持433MHz和315MHz**同时监听** (中断方式)
+   - 使用双库架构: RCSwitch(433MHz) + RCSwitch315(315MHz)
+   - 显示接收到的编码、协议、位数、频率
+   - 支持PT2262/PT2260/EV1527等常见协议 (12种)
+   - 接收容差80% (默认60%)，提高兼容性
+   - 信息持续显示，直到收到新信号
+   - 2秒防重复窗口，避免连续信号干扰
+
+8. **信号存储**:
+   - 使用LittleFS文件系统
+   - JSON格式存储 (`/signals.json`)
+   - 自动保存接收到的信号
+   - 重复信号检测，避免重复保存
+   - 最多保存50个信号
+
+9. **RF信号发送**:
+   - 支持433MHz和315MHz双频发送
+   - 显示已保存信号列表
+   - 上下键选择信号，OK键直接发送
+   - 发送状态显示 (500ms)
+   - 支持12种协议
+
 ## 待实现功能
 
-1. **RF接收**: 接收并解码RF信号，显示协议信息
-2. **RF发射**: 发送已保存的RF信号
-3. **信号存储**: 保存接收到的信号到Flash
-4. **设置**: 配置RF频率、协议等参数
+1. **信号管理**: 删除已保存信号
+2. **设置页面**: 配置RF参数等
 
 ## 模块架构说明
 
@@ -287,6 +338,7 @@ enum ButtonEvent {
 class Page {
 public:
     virtual void enter() = 0;           // 进入页面时初始化
+    virtual void exit() {}              // 退出页面时清理
     virtual void draw() = 0;            // 绘制页面内容
     virtual bool handleButton(ButtonEvent event) = 0;  // 处理按键
     virtual const char* getTitle() = 0; // 获取页面标题
@@ -297,8 +349,8 @@ public:
 
 **已实现页面**:
 - **AboutPage**: 关于页面，显示系统信息（FPS、CPU、RAM、Flash、SDK、运行时间、电池电压）
-- **SignalRxPage**: 信号接收页面 (待实现RF接收功能)
-- **SignalTxPage**: 发送模式页面 (待实现RF发送功能)
+- **SignalRxPage**: 信号接收页面，支持433/315MHz双频扫描，自动保存信号，调试模式显示中断计数
+- **SignalTxPage**: 发送模式页面，显示已保存信号列表，OK键直接发送
 
 **添加新页面步骤**:
 1. 在 `lib/Pages/` 下创建 `XxxPage.h` 和 `XxxPage.cpp`
@@ -306,13 +358,166 @@ public:
 3. 在 `main.cpp` 中添加页面对象和菜单项
 4. 更新 `getPageByIndex()` 和 `getPageStateByIndex()` 函数
 
+### RFReceiver 模块
+**职责**: RF信号接收，同时监听433/315MHz
+
+**关键特性**:
+- 使用双库架构实现同时监听:
+  - RCSwitch433: 433MHz接收 (GPIO1) - 本地库
+  - RCSwitch315: 315MHz接收 (GPIO3) - 本地库
+- 两个库各自维护独立的静态变量，互不干扰
+- 中断方式接收，响应速度快
+- 支持多种协议: PT2262, PT2260, EV1527, HT6P20B, SC5262, HT12E等
+- 调试功能: 可获取中断计数和时序数量
+
+**协议编号映射**:
+| 协议号 | 芯片型号 |
+|--------|----------|
+| 1 | PT2262 |
+| 2 | PT2260 |
+| 3 | EV1527 |
+| 4 | HT6P20B |
+| 5 | SC5262 |
+| 6 | HT12E |
+| 7 | HS2303-PT |
+
+**接口**:
+```cpp
+class RFReceiver {
+    struct Signal {
+        unsigned long code;     // 编码值
+        unsigned int protocol;  // 协议类型
+        unsigned int bits;      // 位长度
+        unsigned int freq;      // 频率 (433/315)
+    };
+
+    void begin();               // 初始化
+    void startScanning();       // 开始扫描 (同时启用两个接收器)
+    void stopScanning();        // 停止扫描
+    void update();              // 每帧调用，检查两个频率
+    bool hasNewSignal();        // 是否有新信号
+    Signal getLastSignal();     // 获取最后信号
+    static const char* getProtocolName(unsigned int protocol);
+
+    // 调试功能
+    unsigned long get433InterruptCount();
+    unsigned long get315InterruptCount();
+    void resetDebugCounters();
+};
+```
+
+### RFTransmitter 模块
+**职责**: RF信号发送，支持433/315MHz双频
+
+**关键特性**:
+- 使用双库架构实现双频发送:
+  - RCSwitch433: 433MHz发送 (GPIO0)
+  - RCSwitch315: 315MHz发送 (GPIO2)
+- 根据信号频率自动选择发送器
+- 支持12种协议
+- 默认重复发送10次
+
+**接口**:
+```cpp
+class RFTransmitter {
+    void begin();               // 初始化
+    void send(code, bits, freq, protocol);  // 发送信号
+    void setRepeatTransmit(int repeat);     // 设置重复次数
+    bool isSending();           // 是否正在发送
+};
+```
+
+### RCSwitch433 模块
+**职责**: 433MHz RF信号收发 (本地库)
+
+**关键特性**:
+- 基于rc-switch库修改，使用独立的类名和静态变量
+- 支持接收和发送功能
+- 调试功能: 中断计数、时序数量
+- 12种协议支持
+
+**接口**:
+```cpp
+class RCSwitch433 {
+    // 接收
+    void enableReceive(int interrupt);
+    void disableReceive();
+    bool available();
+    void resetAvailable();
+    unsigned long getReceivedValue();
+    void setReceiveTolerance(int nPercent);
+
+    // 发送
+    void enableTransmit(int pin);
+    void disableTransmit();
+    void send(unsigned long code, unsigned int length);
+    void setProtocol(int nProtocol);
+    void setRepeatTransmit(int repeat);
+
+    // 调试
+    static unsigned long getInterruptCount();
+    static void resetInterruptCount();
+    static unsigned int getLastTimingsCount();
+};
+```
+
+### RCSwitch315 模块
+**职责**: 315MHz RF信号收发 (本地库，独立于RCSwitch433)
+
+**关键特性**:
+- 基于rc-switch库修改，使用独立的类名和静态变量
+- 与RCSwitch433统一接口风格
+- 可同时工作，实现双频同时监听
+- 支持接收和发送功能
+- 调试功能: 中断计数、时序数量
+- 参考了 https://github.com/zybaozi/RF_MANAGER 的实现方案
+- 支持12种协议
+
+### SignalStorage 模块
+**职责**: 信号的JSON存储和读取
+
+**存储格式** (`/signals.json`):
+```json
+[
+  {
+    "name": "433_1234567",
+    "code": 1234567,
+    "freq": 433,
+    "protocol": 1,
+    "bits": 24
+  }
+]
+```
+
+**接口**:
+```cpp
+class SignalStorage {
+    struct StoredSignal {
+        char name[32];
+        unsigned long code;
+        unsigned int freq;
+        unsigned int protocol;
+        unsigned int bits;
+    };
+
+    bool begin();                                   // 初始化LittleFS
+    bool saveSignal(const StoredSignal& signal);    // 保存信号
+    int loadSignals(StoredSignal* signals, int max);// 加载信号
+    int getSignalCount();                           // 获取数量
+    bool signalExists(unsigned long code);          // 检查是否存在
+    static void generateName(freq, code, outName);  // 生成名称
+};
+```
+
 ## 性能指标
 
 - **按键响应**: <10ms 平均延迟
 - **连击速度**: 最高28次/秒 (35ms最小间隔)
-- **内存使用**: 4.8% (15744字节)
-- **Flash使用**: 36.3% (475250字节)
+- **内存使用**: 5.8% (18936字节)
+- **Flash使用**: 41.9% (548756字节)
 - **屏幕刷新**: 局部刷新策略，只更新变化区域
+- **RF接收**: 双频同时监听，中断方式
+- **RF发送**: 双频支持，12种协议
 
 ## 局部刷新机制
 
