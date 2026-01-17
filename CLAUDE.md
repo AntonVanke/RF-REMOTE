@@ -77,11 +77,19 @@ RF-REMOTE/
 │   ├── Menu/                 # 菜单管理模块
 │   │   ├── Menu.h
 │   │   └── Menu.cpp
+│   ├── Pages/                # 页面模块 (模块化页面内容)
+│   │   ├── Page.h            # 页面基类
+│   │   ├── AboutPage.h       # 关于页面
+│   │   ├── AboutPage.cpp
+│   │   ├── SignalRxPage.h    # 信号接收页面
+│   │   ├── SignalRxPage.cpp
+│   │   ├── SignalTxPage.h    # 发送模式页面
+│   │   └── SignalTxPage.cpp
 │   └── StatusBar/            # 状态栏模块
 │       ├── StatusBar.h
 │       └── StatusBar.cpp
 ├── src/
-│   └── main.cpp              # 主程序
+│   └── main.cpp              # 主程序 (页面路由和初始化)
 ├── platformio.ini            # PlatformIO配置
 └── CLAUDE.md                 # 本文件
 ```
@@ -145,7 +153,7 @@ build_flags =
 ## 已实现功能
 
 1. **主菜单系统**:
-   - 三个菜单项: 信号接收、发送模式、刷新率测试
+   - 三个菜单项: 信号接收、发送模式、关于
    - 上下键导航，确认键进入子页面
    - 长按上键返回主菜单
 
@@ -167,10 +175,16 @@ build_flags =
    - 快速连击支持 (最高28次/秒)
    - 事件队列防止丢帧
 
-5. **刷新率测试**:
+5. **关于页面**:
    - 实时FPS显示
-   - 总帧数统计
-   - 运行时间显示
+   - CPU频率、RAM剩余、Flash大小
+   - SDK版本、运行时间
+   - 电池电压 (补偿0.27V二极管压降)
+
+6. **页面模块化架构**:
+   - Page基类定义统一接口
+   - 各页面独立模块，职责清晰
+   - main.cpp仅负责路由和初始化
 
 ## 待实现功能
 
@@ -234,6 +248,33 @@ enum ButtonEvent {
 - 选中标记 (">")
 - 上下导航
 
+### Pages 模块 (页面模块化)
+**职责**: 独立页面内容管理，与main.cpp解耦
+
+**Page 基类接口**:
+```cpp
+class Page {
+public:
+    virtual void enter() = 0;           // 进入页面时初始化
+    virtual void draw() = 0;            // 绘制页面内容
+    virtual bool handleButton(ButtonEvent event) = 0;  // 处理按键
+    virtual const char* getTitle() = 0; // 获取页面标题
+    virtual bool needsConstantRefresh(); // 是否需要每帧刷新
+    virtual bool update();              // 每帧更新内部状态
+};
+```
+
+**已实现页面**:
+- **AboutPage**: 关于页面，显示系统信息（FPS、CPU、RAM、Flash、SDK、运行时间、电池电压）
+- **SignalRxPage**: 信号接收页面 (待实现RF接收功能)
+- **SignalTxPage**: 发送模式页面 (待实现RF发送功能)
+
+**添加新页面步骤**:
+1. 在 `lib/Pages/` 下创建 `XxxPage.h` 和 `XxxPage.cpp`
+2. 继承 `Page` 基类，实现所有虚函数
+3. 在 `main.cpp` 中添加页面对象和菜单项
+4. 更新 `getPageByIndex()` 和 `getPageStateByIndex()` 函数
+
 ## 性能指标
 
 - **按键响应**: <10ms 平均延迟
@@ -249,8 +290,9 @@ enum ButtonEvent {
 3. RF模块需要9.6V供电，由MT3608升压提供
 4. 中文显示会占用较多Flash空间
 5. 硬件I2C可能不稳定，建议使用软件I2C (默认)
-6. 电池电压需补偿0.3V二极管压降
-7. FPS测试模式会强制每帧刷新，用于性能测试
+6. 电池电压需补偿0.27V二极管压降 (关于页面已补偿)
+7. 关于页面会强制每帧刷新，用于FPS测试
+8. 新增页面需继承Page基类并实现所有虚函数
 
 
 
