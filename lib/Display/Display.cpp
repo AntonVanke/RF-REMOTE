@@ -6,10 +6,25 @@
 #include "Display.h"
 
 Display::Display()
-    : _u8g2(U8G2_R0, OLED_SCL_PIN, OLED_SDA_PIN, U8X8_PIN_NONE) {}
+    #ifdef USE_HW_I2C
+        : _u8g2(U8G2_R0, U8X8_PIN_NONE) {
+        // 硬件I2C构造函数
+    #else
+        : _u8g2(U8G2_R0, OLED_SCL_PIN, OLED_SDA_PIN, U8X8_PIN_NONE) {
+        // 软件I2C构造函数 (scl, sda, reset)
+    #endif
+}
 
 bool Display::begin() {
-    Serial.println("初始化OLED显示屏...");
+    #ifdef USE_HW_I2C
+        Serial.println("初始化OLED显示屏 (硬件I2C, 800kHz)...");
+
+        // 设置I2C时钟频率为800kHz
+        Wire.begin(OLED_SDA_PIN, OLED_SCL_PIN);
+        Wire.setClock(800000);
+    #else
+        Serial.println("初始化OLED显示屏 (优化软件I2C)...");
+    #endif
 
     if (!_u8g2.begin()) {
         Serial.println("错误: OLED初始化失败!");
@@ -17,6 +32,8 @@ bool Display::begin() {
     }
 
     _u8g2.enableUTF8Print();
+    _u8g2.setContrast(255);
+
     Serial.println("OLED初始化成功");
     return true;
 }

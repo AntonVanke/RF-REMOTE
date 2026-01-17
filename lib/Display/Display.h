@@ -40,7 +40,14 @@ public:
     U8G2* getU8g2();
 
 private:
-    U8G2_SSD1306_128X64_NONAME_F_SW_I2C _u8g2;
+    // 硬件I2C (如果不工作，可以改回软件I2C)
+    // 硬件I2C: U8G2_SSD1306_128X64_NONAME_F_HW_I2C
+    // 软件I2C: U8G2_SSD1306_128X64_NONAME_F_SW_I2C
+    #ifdef USE_HW_I2C
+        U8G2_SSD1306_128X64_NONAME_F_HW_I2C _u8g2;
+    #else
+        U8G2_SSD1306_128X64_NONAME_F_SW_I2C _u8g2;
+    #endif
 };
 
 #endif // DISPLAY_H

@@ -114,3 +114,7 @@ btn.setLongClickTime(1000);   // 长按1000ms
 2. 按键使用外部上拉，代码中仍需配置INPUT_PULLUP
 3. RF模块需要9.6V供电，由MT3608升压提供
 4. 中文显示会占用较多Flash空间
+
+
+
+注意：每次修改完后都要更新 CLAUDE.md
