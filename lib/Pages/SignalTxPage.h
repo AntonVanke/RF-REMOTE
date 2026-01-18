@@ -32,6 +32,9 @@ private:
     int _selectedIndex;
     int _scrollOffset;
 
+    // 发送指示器 (> 和 < 交替)
+    bool _arrowRight;   // true=显示>, false=显示<
+
     // 每页显示的信号数量
     static const int ITEMS_PER_PAGE = 3;
 

@@ -11,6 +11,7 @@ SignalTxPage::SignalTxPage(U8G2* u8g2, SignalStorage* storage, RFTransmitter* tr
     , _signalCount(0)
     , _selectedIndex(0)
     , _scrollOffset(0)
+    , _arrowRight(true)
 {
 }
 
@@ -18,6 +19,7 @@ void SignalTxPage::enter() {
     ESP_LOGI(TAG, "进入: 发送模式页面");
     _selectedIndex = 0;
     _scrollOffset = 0;
+    _arrowRight = true;
     loadSignals();
 }
 
@@ -31,7 +33,6 @@ void SignalTxPage::loadSignals() {
 }
 
 bool SignalTxPage::update() {
-    // 不再需要发送状态检查
     return false;
 }
 
@@ -62,16 +63,19 @@ void SignalTxPage::drawSignalList() {
     // 显示信号列表
     int y = 28;
     for (int i = startIdx; i < endIdx; i++) {
-        // 选中标记
-        if (i == _selectedIndex) {
-            _u8g2->drawStr(0, y, ">");
-        }
-
-        // 信号编号和信息 (编号. 频率 编码)
+        // 格式: "1    433M xxx" 或 "2 >  433M xxx" (选中项)
         char line[32];
-        snprintf(line, sizeof(line), "%d. %dM %lu",
-                 i + 1, _signals[i].freq, _signals[i].code);
-        _u8g2->drawStr(8, y, line);
+        if (i == _selectedIndex) {
+            // 选中项: 显示 > 或 <
+            snprintf(line, sizeof(line), "%d %c %dM %lu",
+                     i + 1, _arrowRight ? '>' : '<',
+                     _signals[i].freq, _signals[i].code);
+        } else {
+            // 未选中项: 空格占位
+            snprintf(line, sizeof(line), "%d   %dM %lu",
+                     i + 1, _signals[i].freq, _signals[i].code);
+        }
+        _u8g2->drawStr(0, y, line);
 
         y += 12;
     }
@@ -97,7 +101,10 @@ void SignalTxPage::sendSelectedSignal() {
     ESP_LOGI(TAG, "发送信号: %s 编码:%lu 频率:%dMHz 协议:%d 位数:%d 脉宽:%dus",
              sig.name, sig.code, sig.freq, sig.protocol, sig.bits, sig.pulseLength);
 
-    // 直接发送信号，不改变UI状态
+    // 切换箭头方向 (> <-> <)
+    _arrowRight = !_arrowRight;
+
+    // 发送信号
     _transmitter->send(sig.code, sig.bits, sig.freq, sig.protocol, sig.pulseLength);
 }
 
